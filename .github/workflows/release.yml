@@ -1,0 +1,264 @@
+name: Release
+
+# =============================================================================
+# 发布流水线：多平台原生可执行文件 + 多架构 Docker 镜像 + GitHub Release
+#
+# 触发方式：
+#   1. 推送标签：git tag v0.2.1 && git push origin v0.2.1
+#      —— 版本号取自标签（去掉 v 前缀），构建后推送镜像并创建 GitHub Release。
+#   2. 手动触发（workflow_dispatch）：
+#      —— version 留空则取 Directory.Build.props 中的 Version；
+#      —— push_image=false 时 Docker 镜像只构建不推送（发布演练）。
+#
+# 说明：ci.yml / codeql.yml 只监听 main 分支，标签推送不会触发它们，
+#       因此本流水线自带完整测试门禁，全部通过后才会出包、推镜像、发 Release。
+# =============================================================================
+
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "版本号（如 0.2.1，留空则取 Directory.Build.props 中的 Version）"
+        required: false
+        type: string
+      push_image:
+        description: "构建后推送 Docker 镜像到 GHCR（关闭则仅构建验证）"
+        required: false
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+env:
+  DOTNET_NOLOGO: "true"
+  DOTNET_CLI_TELEMETRY_OPTOUT: "true"
+  DOTNET_SKIP_FIRST_TIME_EXPERIENCE: "true"
+  PROJECT: src/S3ObjectStorage.Api/S3ObjectStorage.Api.csproj
+
+jobs:
+  # ---------------------------------------------------------------- 准备：解析并校验版本号
+  prepare:
+    name: Resolve version
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Resolve version (tag > input > Directory.Build.props)
+        env:
+          INPUT_VERSION: ${{ inputs.version }}
+        run: |
+          if [[ "$GITHUB_REF" == refs/tags/v* ]]; then
+            VERSION="${GITHUB_REF#refs/tags/v}"
+            echo "来源：标签 $GITHUB_REF"
+          elif [[ -n "$INPUT_VERSION" ]]; then
+            VERSION="$INPUT_VERSION"
+            echo "来源：手动输入"
+          else
+            VERSION="$(sed -n 's:.*<Version>\(.*\)</Version>.*:\1:p' Directory.Build.props)"
+            echo "来源：Directory.Build.props"
+          fi
+
+          if ! [[ "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+([-.][0-9A-Za-z.-]+)?$ ]]; then
+            echo "版本号不合法：'$VERSION'（期望形如 1.2.3 或 1.2.3-beta.1）" >&2
+            exit 1
+          fi
+
+          echo "版本号：$VERSION"
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+
+  # ---------------------------------------------------------------- 门禁：格式 + 构建 + 测试
+  test:
+    name: Test gate
+    runs-on: ubuntu-latest
+    needs: prepare
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.x
+
+      - name: Cache NuGet packages
+        uses: actions/cache@v4
+        with:
+          path: ~/.nuget/packages
+          key: nuget-${{ runner.os }}-${{ hashFiles('Directory.Packages.props', '**/*.csproj') }}
+          restore-keys: |
+            nuget-${{ runner.os }}-
+
+      - name: Restore
+        run: dotnet restore
+
+      - name: Verify formatting
+        run: dotnet format --verify-no-changes --no-restore
+
+      - name: Build
+        run: >
+          dotnet build --configuration Release --no-restore -warnaserror
+          -p:Version=${{ needs.prepare.outputs.version }}
+
+      - name: Test
+        run: dotnet test --configuration Release --no-build
+
+  # ---------------------------------------------------------------- 原生可执行文件矩阵（自包含单文件）
+  native:
+    name: Native ${{ matrix.rid }}
+    runs-on: ${{ matrix.os }}
+    needs: [prepare, test]
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            rid: linux-x64
+          - os: ubuntu-latest
+            rid: linux-arm64 # 交叉编译：无需 ARM 机器或模拟器
+          - os: windows-latest
+            rid: win-x64
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.x
+
+      - name: Cache NuGet packages
+        uses: actions/cache@v4
+        with:
+          path: ~/.nuget/packages
+          key: nuget-${{ runner.os }}-${{ hashFiles('Directory.Packages.props', '**/*.csproj') }}
+          restore-keys: |
+            nuget-${{ runner.os }}-
+
+      - name: Publish self-contained single-file
+        run: >
+          dotnet publish ${{ env.PROJECT }}
+          -c Release
+          -r ${{ matrix.rid }}
+          --self-contained true
+          -p:PublishSingleFile=true
+          -p:IncludeNativeLibrariesForSelfExtract=true
+          -p:EnableCompressionInSingleFile=true
+          -p:Version=${{ needs.prepare.outputs.version }}
+          -o out/${{ matrix.rid }}
+
+      # 注意：单文件包只捆绑程序集与原生库，appsettings.json 与 wwwroot（管理端前端）
+      # 是独立内容文件，必须随包分发，否则服务会回落到 5000 端口且管理端 404。
+      - name: Package (tar.gz)
+        if: runner.os == 'Linux'
+        run: >-
+          tar -czf s3objectstorage-${{ needs.prepare.outputs.version }}-${{ matrix.rid }}.tar.gz
+          -C out/${{ matrix.rid }}
+          S3ObjectStorage.Api appsettings.json S3ObjectStorage.Api.staticwebassets.endpoints.json wwwroot
+
+      - name: Package (zip)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: >-
+          Compress-Archive
+          -Path out/${{ matrix.rid }}/S3ObjectStorage.Api.exe,
+          out/${{ matrix.rid }}/appsettings.json,
+          out/${{ matrix.rid }}/S3ObjectStorage.Api.staticwebassets.endpoints.json,
+          out/${{ matrix.rid }}/wwwroot
+          -DestinationPath s3objectstorage-${{ needs.prepare.outputs.version }}-${{ matrix.rid }}.zip
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: dist-${{ matrix.rid }}
+          path: s3objectstorage-${{ needs.prepare.outputs.version }}-${{ matrix.rid }}.*
+          retention-days: 14
+          if-no-files-found: error
+
+  # ---------------------------------------------------------------- Docker 多架构镜像
+  docker:
+    name: Container image
+    runs-on: ubuntu-latest
+    needs: [prepare, test]
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Compute image name (GHCR 要求全小写)
+        run: echo "IMAGE=ghcr.io/${GITHUB_REPOSITORY,,}" >> "$GITHUB_ENV"
+
+      - uses: docker/setup-qemu-action@v3
+
+      - uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GHCR
+        if: ${{ github.event_name == 'push' || inputs.push_image == true }}
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Extract metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.IMAGE }}
+          tags: |
+            type=raw,value=${{ needs.prepare.outputs.version }}
+            type=semver,pattern={{major}}.{{minor}}
+            type=raw,value=latest,enable=${{ github.event_name == 'push' }}
+
+      - name: Build (and push) multi-arch image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          platforms: linux/amd64,linux/arm64
+          push: ${{ github.event_name == 'push' || inputs.push_image == true }}
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          build-args: |
+            VERSION=${{ needs.prepare.outputs.version }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+  # ---------------------------------------------------------------- 汇总：GitHub Release
+  release:
+    name: GitHub Release
+    runs-on: ubuntu-latest
+    needs: [prepare, test, native, docker]
+    if: startsWith(github.ref, 'refs/tags/v')
+    permissions:
+      contents: write
+    steps:
+      - name: Download all packaged artifacts
+        uses: actions/download-artifact@v4
+        with:
+          pattern: dist-*
+          path: dist
+          merge-multiple: true
+
+      - name: Generate SHA256SUMS
+        run: |
+          cd dist
+          sha256sum *.tar.gz *.zip > SHA256SUMS.txt
+          cat SHA256SUMS.txt
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          name: S3ObjectStorage v${{ needs.prepare.outputs.version }}
+          generate_release_notes: true
+          fail_on_unmatched_files: true
+          files: |
+            dist/*.tar.gz
+            dist/*.zip
+            dist/SHA256SUMS.txt

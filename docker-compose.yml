@@ -1,0 +1,70 @@
+name: s3objectstorage
+
+services:
+  objectstorage:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: s3objectstorage:latest
+    container_name: s3objectstorage
+    restart: unless-stopped
+    init: true
+
+    ports:
+      # 宿主机端口可改：S3_PORT=9100 docker compose up -d
+      - "${S3_PORT:-9000}:9000"
+
+    environment:
+      # ---- S3 协议 ----
+      S3STORAGE_S3__Region: ${S3_REGION:-us-east-1}
+      S3STORAGE_S3__RequireAuthentication: "true"
+      S3STORAGE_S3__EnforceRegion: "false"
+
+      # ---- 管理端（必填，见 .env.example）----
+      S3STORAGE_Admin__Enabled: "true"
+      S3STORAGE_Admin__Token: ${ADMIN_TOKEN:?ADMIN_TOKEN is required，请复制 .env.example 为 .env 并填写}
+      S3STORAGE_Admin__SessionHours: "12"
+
+      # ---- 存储 ----
+      S3STORAGE_Storage__RootPath: /data
+      S3STORAGE_Storage__VerifyPayloadHash: "true"
+
+      # ---- 初始访问密钥（必填；仅首次启动、元数据库为空时写入）----
+      S3STORAGE_Storage__BootstrapAccessKeys__0__AccessKeyId: ${S3_ACCESS_KEY:?S3_ACCESS_KEY is required，请复制 .env.example 为 .env 并填写}
+      S3STORAGE_Storage__BootstrapAccessKeys__0__SecretAccessKey: ${S3_SECRET_KEY:?S3_SECRET_KEY is required，请复制 .env.example 为 .env 并填写}
+      S3STORAGE_Storage__BootstrapAccessKeys__0__DisplayName: root
+      S3STORAGE_Storage__BootstrapAccessKeys__0__IsAdmin: "true"
+
+    volumes:
+      # 元数据 SQLite 与对象体都在这一个卷里，备份只需备份它。
+      - s3data:/data
+
+    # 最小权限：只读根文件系统之外仅允许写 /data 卷。
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+
+    healthcheck:
+      test: ["CMD", "bash", "-c", "exec 3<>/dev/tcp/127.0.0.1/9000"]
+      interval: 30s
+      timeout: 3s
+      start_period: 15s
+      retries: 3
+
+    logging:
+      driver: json-file
+      options:
+        max-size: "20m"
+        max-file: "5"
+
+    # 内存下限：实测 16 并发 32 MB 分片上传时进程峰值 RSS 约 185 MB，
+    # 192 MB 限额会被 OOM Kill，256 MB 可稳定通过，推荐 512 MB～1 GB。
+    # deploy:
+    #   resources:
+    #     limits:
+    #       memory: 512M
+
+volumes:
+  s3data:
+    name: s3objectstorage-data

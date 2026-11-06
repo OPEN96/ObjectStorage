@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: 安全问题
+    url: https://github.com/OPEN96/ObjectStorage/security/advisories/new
+    about: 请通过 GitHub Security Advisories 私密报告漏洞，不要公开提交 Issue。
+  - name: 使用与部署文档
+    url: https://github.com/OPEN96/ObjectStorage/blob/main/docs/deployment.md
+    about: 部署、反向代理、备份与故障排查请先查阅文档。

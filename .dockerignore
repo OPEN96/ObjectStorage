@@ -1,0 +1,29 @@
+# 构建上下文裁剪：镜像里只需要 SDK 能编译的源码与工程文件
+**/bin/
+**/obj/
+**/data/
+**/TestResults/
+**/.vs/
+**/.idea/
+**/.vscode/
+**/*.user
+**/*.suo
+**/*.log
+
+tests/
+tools/
+scripts/
+docs/
+.github/
+.git/
+.gitignore
+.gitattributes
+# 注意：不要排除 .editorconfig。它是构建输入——分析器抑制规则（CA1031/CA1848/CA1873/
+# CA5351 等）都写在里面；缺了它，容器内 dotnet publish 会在 TreatWarningsAsErrors 下直接失败。
+
+# 文档、本地编排与密钥不进镜像
+*.md
+docker-compose*.yml
+.env
+.env.*
+LICENSE
