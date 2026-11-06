@@ -1,0 +1,27 @@
+<Project Sdk="Microsoft.NET.Sdk.Web">
+
+  <PropertyGroup>
+    <RootNamespace>S3ObjectStorage.Api</RootNamespace>
+    <AssemblyName>S3ObjectStorage.Api</AssemblyName>
+    <UserSecretsId>s3objectstorage-api</UserSecretsId>
+  </PropertyGroup>
+
+  <!--
+    本项目用 EnsureCreated 建库，不维护 migrations，因此不引用
+    Microsoft.EntityFrameworkCore.Design：它会把 BuildHost-net472 / BuildHost-netcore
+    两个 MSBuild 工作进程（约 4 MB）复制进发布输出，生产环境完全用不到。
+    将来引入 migrations 时在这里加回该包（版本已在 Directory.Packages.props 中预置）。
+  -->
+
+  <ItemGroup>
+    <ProjectReference Include="..\S3ObjectStorage.Domain\S3ObjectStorage.Domain.csproj" />
+    <ProjectReference Include="..\S3ObjectStorage.Infrastructure\S3ObjectStorage.Infrastructure.csproj" />
+    <ProjectReference Include="..\S3ObjectStorage.S3Protocol\S3ObjectStorage.S3Protocol.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- 管理端静态资源同时复制到输出目录，集成测试用 WebApplicationFactory 时也能找到。 -->
+    <Content Update="wwwroot\**" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+
+</Project>

@@ -1,0 +1,11 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/S3ObjectStorage.Api/S3ObjectStorage.Api.csproj" />
+    <Project Path="src/S3ObjectStorage.Domain/S3ObjectStorage.Domain.csproj" />
+    <Project Path="src/S3ObjectStorage.Infrastructure/S3ObjectStorage.Infrastructure.csproj" />
+    <Project Path="src/S3ObjectStorage.S3Protocol/S3ObjectStorage.S3Protocol.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/S3ObjectStorage.Tests/S3ObjectStorage.Tests.csproj" />
+  </Folder>
+</Solution>

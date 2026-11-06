@@ -1,0 +1,110 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>S3 对象存储 · 管理控制台</title>
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%234f46e5'/%3E%3Ctext x='16' y='21' font-family='system-ui' font-size='13' font-weight='700' fill='white' text-anchor='middle'%3ES3%3C/text%3E%3C/svg%3E">
+  <link rel="stylesheet" href="/admin/app.css">
+</head>
+<body>
+
+  <!-- ============================= 登录 ============================= -->
+  <div id="login" class="login" hidden>
+    <div class="login__bg" aria-hidden="true"></div>
+    <div class="login__card">
+      <div class="brand brand--lg">
+        <span class="brand__mark">S3</span>
+        <span class="brand__text">
+          <strong>对象存储</strong>
+          <small>管理控制台</small>
+        </span>
+      </div>
+
+      <div class="tabs" id="login-tabs">
+        <button class="tab is-active" data-tab="token">管理员令牌</button>
+        <button class="tab" data-tab="key">访问密钥</button>
+      </div>
+
+      <form id="login-form" class="login__form" autocomplete="off">
+        <div class="field" data-pane="token">
+          <label for="login-token">令牌</label>
+          <input id="login-token" name="token" type="password" placeholder="Admin:Token 配置的值" spellcheck="false">
+        </div>
+
+        <div class="field" data-pane="key" hidden>
+          <label for="login-ak">AccessKeyId</label>
+          <input id="login-ak" name="accessKeyId" type="text" placeholder="AKIA..." spellcheck="false">
+        </div>
+        <div class="field" data-pane="key" hidden>
+          <label for="login-sk">SecretAccessKey</label>
+          <input id="login-sk" name="secretAccessKey" type="password" placeholder="仅管理员密钥可登录" spellcheck="false">
+        </div>
+
+        <p class="login__error" id="login-error" hidden></p>
+
+        <button class="btn btn--primary btn--block" type="submit" id="login-submit">登录</button>
+      </form>
+
+      <p class="login__hint">
+        令牌在服务端 <code>Admin:Token</code> 配置（环境变量 <code>S3STORAGE_Admin__Token</code>）；
+        也可使用 <code>IsAdmin=true</code> 的访问密钥登录。
+      </p>
+      <p class="login__endpoint"><span class="dot"></span><span id="login-endpoint"></span></p>
+    </div>
+  </div>
+
+  <!-- ============================= 主框架 ============================= -->
+  <div id="shell" class="shell" hidden>
+    <aside class="sidebar">
+      <div class="brand">
+        <span class="brand__mark">S3</span>
+        <span class="brand__text"><strong>对象存储</strong><small>管理控制台</small></span>
+      </div>
+
+      <nav class="nav" id="nav">
+        <a class="nav__item" href="#/overview" data-nav="overview">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 13h6V4H4v9Zm0 7h6v-5H4v5Zm10 0h6v-9h-6v9Zm0-16v5h6V4h-6Z"/></svg>
+          <span>概览</span>
+        </a>
+        <a class="nav__item" href="#/buckets" data-nav="buckets">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M21 8v8a2 2 0 0 1-1 1.7l-7 4a2 2 0 0 1-2 0l-7-4A2 2 0 0 1 3 16V8a2 2 0 0 1 1-1.7l7-4a2 2 0 0 1 2 0l7 4A2 2 0 0 1 21 8Z"/><path d="m3.3 7 8.7 5 8.7-5M12 22V12"/></svg>
+          <span>存储桶</span>
+        </a>
+        <a class="nav__item" href="#/keys" data-nav="keys">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M14 7a4 4 0 1 1-3.2 6.4L4 20v-3l2-2H4v-3h3l3.8-3.2A4 4 0 0 1 14 7Z"/></svg>
+          <span>访问密钥</span>
+        </a>
+      </nav>
+
+      <div class="sidebar__foot">
+        <div class="endpoint" id="endpoint-chip" title="S3 服务端点"></div>
+        <button class="nav__item nav__item--button" data-act="logout">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4M10 17l5-5-5-5M15 12H3"/></svg>
+          <span>退出登录</span>
+        </button>
+      </div>
+    </aside>
+
+    <div class="main">
+      <header class="topbar">
+        <div class="crumb" id="crumb"></div>
+        <div class="topbar__right">
+          <button class="icon-btn" data-act="refresh" title="刷新">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 12a8 8 0 1 1-2.3-5.7M20 4v5h-5"/></svg>
+          </button>
+          <div class="userchip" id="userchip"></div>
+        </div>
+      </header>
+
+      <main class="view" id="view"></main>
+    </div>
+  </div>
+
+  <div id="modal-root"></div>
+  <div id="toasts" class="toasts" aria-live="polite"></div>
+  <div id="uploads" class="uploads" hidden></div>
+
+  <script src="/admin/app.js"></script>
+</body>
+</html>
