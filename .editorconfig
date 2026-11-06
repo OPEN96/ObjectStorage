@@ -1,0 +1,48 @@
+# https://editorconfig.org
+root = true
+
+[*]
+charset = utf-8
+end_of_line = lf
+insert_final_newline = true
+trim_trailing_whitespace = true
+indent_style = space
+indent_size = 4
+
+[*.{json,yml,yaml,csproj,props,targets,slnx}]
+indent_size = 2
+
+[*.{js,css,html}]
+indent_size = 2
+
+[*.md]
+trim_trailing_whitespace = false
+
+[*.cs]
+# using 指令排序与清理
+dotnet_sort_system_directives_first = true
+dotnet_separate_import_directive_groups = false
+
+# 语言风格
+csharp_style_namespace_declarations = file_scoped:warning
+csharp_style_var_for_built_in_types = true:suggestion
+csharp_style_var_when_type_is_apparent = true:suggestion
+csharp_style_expression_bodied_methods = when_on_single_line:suggestion
+csharp_prefer_braces = true:suggestion
+
+# 命名规则（与现有代码保持一致）
+dotnet_naming_rule.interfaces_start_with_i.severity = warning
+dotnet_naming_rule.interfaces_start_with_i.symbols = interfaces
+dotnet_naming_rule.interfaces_start_with_i.style = begins_with_i
+dotnet_naming_symbols.interfaces.applicable_kinds = interface
+dotnet_naming_style.begins_with_i.required_prefix = I
+dotnet_naming_style.begins_with_i.capitalization = pascal_case
+
+# 常见分析器规则
+dotnet_diagnostic.CA1031.severity = none      # 顶层异常兜底是有意为之
+dotnet_diagnostic.CA1848.severity = none      # 未引入 LoggerMessage 源生成器
+dotnet_diagnostic.CA2007.severity = none      # ASP.NET Core 无同步上下文
+dotnet_diagnostic.CA1305.severity = suggestion
+dotnet_diagnostic.CA1873.severity = none      # 日志参数均为低成本的字段/路径拼接
+dotnet_diagnostic.CA5351.severity = none      # S3 ETag 规范要求使用 MD5，不用于安全目的
+dotnet_diagnostic.IDE0005.severity = warning  # 未使用的 using
