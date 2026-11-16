@@ -6,7 +6,7 @@
 # ============================================================
 
 # ------------------------------ 构建 ------------------------------
-FROM mcr.microsoft.com/dotnet/sdk:10.0 AS build
+FROM mcr.microsoft.com/dotnet/sdk:11.0 AS build
 WORKDIR /src
 
 # 先只复制工程文件与集中式依赖清单，让 restore 层可以被缓存：只改代码时不必重新拉包。
