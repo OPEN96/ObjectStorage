@@ -34,7 +34,7 @@ RUN VERSION_ARGS="" \
         $VERSION_ARGS
 
 # ------------------------------ 运行 ------------------------------
-FROM mcr.microsoft.com/dotnet/aspnet:10.0 AS final
+FROM mcr.microsoft.com/dotnet/aspnet:11.0 AS final
 
 LABEL org.opencontainers.image.title="S3ObjectStorage" \
       org.opencontainers.image.description="S3-compatible object storage server built on .NET 10" \
